@@ -1,10 +1,9 @@
-
 # 🧠 Static Filipino Sign Language (FSL) Alphabet Recognition using HOG + SVM
 
 This project implements a **machine learning system for recognizing Static Filipino Sign Language (FSL) alphabets** using classical computer vision and machine learning techniques:
 
-* Histogram of Oriented Gradients (HOG) for feature extraction
-* Support Vector Machine (SVM) for classification
+- Histogram of Oriented Gradients (HOG) for feature extraction
+- Support Vector Machine (SVM) for classification
 
 ⚠️ This model is ONLY for **STATIC alphabet gestures (A–Z or dataset classes)**. It does NOT support dynamic/moving signs.
 
@@ -23,15 +22,17 @@ fsl-svm/
 │   │   └── ...
 │   │
 │   ├── csvs/
-│   │   ├── train.csv
-│   │   └── test.csv
+│   │   ├── train.csv        # generated dataset split
+│   │   └── test.csv         # generated dataset split
 │   │
-│   ├── fsl_svm_model.py      # Main SVM + HOG pipeline
-│   ├── pipeline.py           # Training & evaluation script
-│   ├── svm_hog_model.pkl     # Saved trained model (generated after training)
-│   ├── requirements.txt      # Needed dependencies
+│   ├── data_collection.py   # dataset scanner + train/test split generator
+│   ├── fsl_svm_model.py     # SVM + HOG pipeline
+│   ├── pipeline.py          # training & evaluation entry point
+│   ├── svm_hog_model.pkl    # saved trained model (generated after training)
+│   ├── requirements.txt     # dependencies
+│   │
 │   └── venv/
-│ 
+│
 └── README.md
 ```
 
@@ -39,9 +40,9 @@ fsl-svm/
 
 ## ⚙️ Requirements
 
-* Python 3.9+
-* pip
-* virtualenv (recommended)
+- Python 3.9+
+- pip
+- virtualenv (recommended)
 
 ---
 
@@ -77,13 +78,9 @@ pip install -r requirements.txt
 
 ⚠️ The dataset is required for training.
 
----
-
 ### 📥 Step 1: Download dataset
 
 Download `FSL-dataset.zip`
-
----
 
 ### 📂 Step 2: Extract dataset
 
@@ -93,9 +90,7 @@ Extract it inside the `server/` directory:
 unzip FSL-dataset.zip -d server/
 ```
 
----
-
-### 📁 Final dataset structure
+### 📁 Expected structure
 
 ```
 server/FSL-dataset/
@@ -112,6 +107,24 @@ Each folder represents a **STATIC FSL alphabet class**.
 
 ---
 
+## 📦 Data Preparation (IMPORTANT)
+
+Before training, generate CSV files:
+
+```bash
+python data_collection.py
+```
+
+This will:
+- Scan dataset folders
+- Assign labels based on folder names
+- Split dataset into 80% train / 20% test
+- Save:
+  - `server/csvs/train.csv`
+  - `server/csvs/test.csv`
+
+---
+
 ## 🚀 Running the Project
 
 ### ▶️ Train model
@@ -121,34 +134,33 @@ python pipeline.py
 ```
 
 This will:
-
-* Load dataset from CSV
-* Preprocess images
-* Extract HOG features
-* Train SVM classifier
-* Evaluate model performance
+- Load dataset from CSV
+- Preprocess images
+- Extract HOG features
+- Train SVM classifier
+- Evaluate model performance
 
 ---
 
 ## 📊 Evaluation Outputs
 
-* Classification Report (Precision, Recall, F1-score)
-* Confusion Matrix
-* Per-class Specificity
-* Training Accuracy
-* Testing Accuracy
-* Prediction confidence scores
+- Classification Report (Precision, Recall, F1-score)
+- Confusion Matrix
+- Per-class Specificity
+- Training Accuracy
+- Testing Accuracy
+- Prediction confidence scores
 
 ---
 
 ## 🧠 Model Details
 
-* **Type**: Static FSL Alphabet Recognition
-* **Features**: HOG (Histogram of Oriented Gradients)
-* **Classifier**: Support Vector Machine (SVM)
-* **Kernel**: Linear
-* **Probability Output**: Enabled
-* **Input Size**: 128 × 128 grayscale images
+- **Type**: Static FSL Alphabet Recognition
+- **Features**: HOG (Histogram of Oriented Gradients)
+- **Classifier**: Support Vector Machine (SVM)
+- **Kernel**: Linear
+- **Probability Output**: Enabled
+- **Input Size**: 128 × 128 grayscale images
 
 ---
 
@@ -183,10 +195,10 @@ model.load_svm_model()
 
 ## ⚠️ Important Notes
 
-* This model ONLY supports **static gestures**
-* It does NOT handle motion-based signs
-* Poor image quality may reduce accuracy
-* Dataset must be properly labeled and structured
+- This model ONLY supports **static gestures**
+- It does NOT handle motion-based signs
+- Poor image quality may reduce accuracy
+- Dataset must be properly labeled and structured
 
 ---
 
@@ -194,6 +206,8 @@ model.load_svm_model()
 
 ### Empty dataset error
 
-* Ensure `FSL-dataset/` is correctly extracted
-* Check CSV file paths
+- Ensure `FSL-dataset/` is correctly extracted
+- Ensure `data_collection.py` has been executed
+- Check CSV file paths
 
+---
