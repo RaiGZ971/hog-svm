@@ -6,3 +6,4 @@ __pycache__/
 .DS_Store
 .ipynb_checkpoints/
 FSL-dataset/
+node_modules/
