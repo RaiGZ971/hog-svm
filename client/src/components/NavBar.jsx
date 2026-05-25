@@ -6,14 +6,14 @@ function Navbar() {
   const location = useLocation();
 
   const tabs = [
-    { name: "home", path: "/" },
-    { name: "recognizer", path: "/recognizer" }
+    { name: "Home", path: "/" },
+    { name: "Recognizer", path: "/recognizer" }
   ];
 
   return (
     <nav className="primary-nav">
       <span className="logo-text">
-        QZPH–SVM FSLR
+        HOG–SVM FSL Recognizer
       </span>
 
       <div className="nav-buttons">
