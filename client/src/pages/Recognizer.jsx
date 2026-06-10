@@ -1,16 +1,9 @@
 import { useState, useRef, useCallback } from "react";
+import { useWebSocket } from "../hooks/useWebsocket";
 
 const VOCAB_CATEGORIES = [
-  { name: "Alphabets", words: ["Good morning", "Good afternoon", "Good evening", "Hello", "Goodbye", "Thank you", "You're welcome"] },
-  { name: "Survival", words: ["Help", "Emergency", "Police", "Hospital", "Fire", "Stop", "Wait"] },
-  { name: "Number", words: ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"] },
-  { name: "Calendar", words: ["January", "February", "March", "April", "May", "June", "July"] },
-  { name: "Days", words: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] },
-  { name: "Family", words: ["Mother", "Father", "Sister", "Brother", "Grandmother", "Grandfather"] },
-  { name: "Relationship", words: ["Friend", "Partner", "Colleague", "Neighbor"] },
-  { name: "Food", words: ["Rice", "Water", "Bread", "Fish", "Vegetable", "Fruit"] },
-  { name: "Color", words: ["Red", "Blue", "Green", "Yellow", "White", "Black"] },
-  { name: "Drink", words: ["Water", "Coffee", "Tea", "Juice", "Milk"] },
+  { name: "Greetings", words: ["Good morning", "Good afternoon", "Good evening", "Hello", "Goodbye", "Thank you", "You're welcome"] },
+  { name: "Color", words: ["Red", "Blue", "Green", "Yellow", "White", "Black"] }
 ];
 
 export default function Recognizer() {
@@ -20,6 +13,27 @@ export default function Recognizer() {
   const [detectedGesture, setDetectedGesture] = useState("—");
   const [isDetecting, setIsDetecting] = useState(false);
   const [openCategories, setOpenCategories] = useState({ Alphabets: true });
+
+  const { connectWebSocket, disconnectWebSocket, wsRef } = useWebSocket(setDetectedGesture);
+  const intervalRef = useRef(null);
+
+  const sendFrame = () => {
+    const video = videoRef.current;
+    const ws = wsRef.current;
+
+    if (!video || !ws || ws.readyState !== 1) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+
+    const frame = canvas.toDataURL("image/jpeg").split(",")[1];
+
+    ws.send(frame);
+  };
 
   const startCamera = useCallback(async () => {
     try {
@@ -181,7 +195,27 @@ export default function Recognizer() {
               </button>
             ) : (
               <>
-                <button onClick={() => setIsDetecting((d) => !d)} style={{
+                <button onClick={() => {
+                  setIsDetecting((prev) => {
+                    const next = !prev;
+
+                    if (next) {
+                      connectWebSocket();
+
+                      intervalRef.current = setInterval(() => {
+                        sendFrame();
+                      }, 100); // ~10 FPS
+                    } else {
+                      disconnectWebSocket();
+
+                      clearInterval(intervalRef.current);
+                      intervalRef.current = null;
+                    }
+
+                    return next;
+                  });
+                }}
+                style={{
                   flex: 1,
                   background: isDetecting ? "#111" : "#e53e3e",
                   color: "#fff", border: "none", borderRadius: "10px",

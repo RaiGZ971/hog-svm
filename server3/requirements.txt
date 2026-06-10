@@ -1,0 +1,13 @@
+numpy
+pandas
+opencv-python
+mediapipe
+
+scikit-learn
+scipy
+joblib
+
+fastapi
+uvicorn[standard]
+
+torch

@@ -7,7 +7,9 @@ function Navbar() {
 
   const tabs = [
     { name: "Home", path: "/" },
-    { name: "Recognizer", path: "/recognizer" }
+    { name: "Recognizer", path: "/recognizer" },
+    { name: "Alphabet", path: "/alphabet" },
+    { name: "LSTM", path: "/lstm"}
   ];
 
   return (
