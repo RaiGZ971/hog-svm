@@ -42,11 +42,11 @@ export default function Alphabets() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    canvas.width = 128;
-    canvas.height = 128;
+    canvas.width = 224;
+    canvas.height = 224;
 
     const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, 128, 128);
+    ctx.drawImage(video, 0, 0, 224, 224);
 
     const frame = canvas.toDataURL("image/jpeg").split(",")[1];
 
