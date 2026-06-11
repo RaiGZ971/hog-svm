@@ -324,9 +324,10 @@ import cv2
 from scipy.spatial.distance import cdist
 import joblib
 
-from sklearn.svm import SVC
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from svm.stratified_kfold import StratifiedKFold
+from svm.grid_search_cv import GridSearchCV
+from svm.standard_scaler import StandardScaler
+
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 
@@ -579,21 +580,16 @@ class FslSvm:
         param_grid = {
             "C":      [0.1, 1, 10, 100],
             "gamma":  ["scale", 0.01, 0.001, 0.0001],
-            "kernel": ["rbf"]
+            "max_passes": [10]
         }
 
         cv   = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-        grid = GridSearchCV(
-            estimator  = SVC(probability=True),
-            param_grid = param_grid,
-            cv         = cv,
-            scoring    = "accuracy",
-            n_jobs     = -1,
-            verbose    = 1
-        )
+        grid = GridSearchCV(param_grid=param_grid, cv=cv, verbose=1)
         grid.fit(self.X_train, self.y_train)
 
         self.svm = grid.best_estimator_
+        self.scaler = grid._best_scaler
+
         print("SVM trained successfully.")
         print("Best parameters:", grid.best_params_)
         print("Best CV accuracy:", grid.best_score_)
@@ -631,10 +627,10 @@ class FslSvm:
         print("CONFIDENCE:", float(confidence))
         print("LABEL:     ", pred_label)
 
-    def save_svm_model(self, path="./models/fsl-svm-2-catv2.pkl"):
+    def save_svm_model(self, path="./models/fsl-svm-2-catv3.pkl"):
         joblib.dump({"model": self.svm, "scaler": self.scaler}, path)
 
-    def load_svm_model(self, path="./models/fsl-svm-2-catv2.pkl"):
+    def load_svm_model(self, path="./models/fsl-svm-2-catv3.pkl"):
         data        = joblib.load(path)
         self.svm    = data["model"]
         self.scaler = data["scaler"]
