@@ -18,6 +18,10 @@ IDLE_PATIENCE = 12
 
 
 def _normalise_hand(hand: np.ndarray) -> np.ndarray:
+    """
+    Mirrors fsl_svm.py _normalise_hand exactly.
+    All-zero hands are returned unchanged.
+    """
     if np.all(hand == 0.0):
         return hand
     hand = hand - hand[0]
@@ -34,7 +38,7 @@ def _normalise_point_cloud(point_cloud: list) -> np.ndarray:
     return cloud
 
 
-# ── State machine states ───────────────────────────────────────────────────
+# State machine states
 _IDLE       = "IDLE"
 _SIGNING    = "SIGNING"
 _PREDICTING = "PREDICTING"
@@ -51,105 +55,110 @@ class FslSvmInfer:
         self.motion = []
         self.prev   = None
 
-        # EMA smoothing
-        self.motion_ema = 0.0
-        self.ema_alpha  = 0.3
-
         # state machine
         self.state        = _IDLE
         self.idle_counter = 0
 
-    # ── Chamfer distance ───────────────────────────────────────────────────
-
     def _chamfer(self, a, b):
-        a = np.array(a)
-        b = np.array(b)
-        return (
-            cdist(a, b).min(axis=1).mean() +
-            cdist(b, a).min(axis=1).mean()
-        )
-
-    # ── Keyframe selection ─────────────────────────────────────────────────
+        if a is None or b is None:
+            return 0.0
+        pc1 = np.array(a)
+        pc2 = np.array(b)
+        d1  = cdist(pc1, pc2).min(axis=1).mean()
+        d2  = cdist(pc2, pc1).min(axis=1).mean()
+        return d1 + d2
 
     def _keyframes(self, motion):
+        """
+        Select exactly KEYFRAME_K indices from motion.
+
+        Priority order (highest motion moments win):
+          1. Boundary frames {0, n-1}
+          2. Local motion peaks
+          3. Top-k highest motion frames
+
+        If the union exceeds k we keep the k frames with the highest motion
+        values — this is consistent with what training produced for short
+        trimmed clips where the union never exceeded k, and prevents the
+        feature vector from growing beyond (2k-1)*126 on longer live buffers.
+        """
         k = KEYFRAME_K
         n = len(motion)
-        if n < 2:
-            return list(range(n))
+        motion_arr = np.array(motion)
 
-        idx = {0, n - 1}
-        for i in range(1, n - 1):
-            if motion[i] > motion[i - 1] and motion[i] > motion[i + 1]:
-                idx.add(i)
+        candidates = set()
+        candidates.add(0)
+        candidates.add(n - 1)
 
-        idx.update(np.argsort(motion)[-k:])
-        idx = sorted(idx)
-        while len(idx) < k:
-            idx.append(idx[-1])
-        return idx[:k]
+        for t in range(1, n - 1):
+            if motion[t] > motion[t - 1] and motion[t] > motion[t + 1]:
+                candidates.add(t)
 
-    # ── Feature extraction ─────────────────────────────────────────────────
+        candidates.update(np.argsort(motion)[-k:].tolist())
+
+        # If we have more than k candidates, keep the k with highest motion.
+        # If fewer, pad by repeating the last index.
+        candidates = sorted(candidates)
+        if len(candidates) > k:
+            candidates = sorted(
+                candidates,
+                key=lambda i: motion_arr[i],
+                reverse=True
+            )[:k]
+            candidates = sorted(candidates)  # restore temporal order
+
+        while len(candidates) < k:
+            candidates.append(candidates[-1])
+
+        return candidates
 
     def _features(self, frames, motion):
         keyframes = self._keyframes(motion)
+
         norm_frames = np.array([
-            _normalise_point_cloud(frames[i]).flatten()
+            _normalise_point_cloud(frames[i]).flatten()   # (126,)
             for i in keyframes
-        ], dtype=np.float32)
+        ], dtype=np.float32)                              # (K, 126)
 
-        pose_block     = norm_frames.flatten()
-        velocity_block = np.diff(norm_frames, axis=0).flatten()
-        return np.concatenate([pose_block, velocity_block])
+        pose_block     = norm_frames.flatten()                  # K * 126
+        velocity_block = np.diff(norm_frames, axis=0).flatten() # (K-1) * 126
 
-    # ── Reset buffers ──────────────────────────────────────────────────────
+        return np.concatenate([pose_block, velocity_block])     # (2K-1) * 126
 
+    # Reset buffers
     def reset(self):
         self.buffer       = []
         self.motion       = []
         self.prev         = None
-        self.motion_ema   = 0.0
         self.state        = _IDLE
         self.idle_counter = 0
         print("[INFO] Buffers reset, back to IDLE")
 
-    # ── Main predict (call with landmark array from frontend) ──────────────
+    # Main predict
 
     def predict(self, landmarks: list) -> str | None:
-        """
-        Feed one frame's landmark array (42 points × 3 coords = list of 42 [x,y,z]).
-        landmarks[0:21]  = left hand
-        landmarks[21:42] = right hand
-        Returns a label string only when a complete gesture has been detected
-        and classified. Returns None otherwise.
-        """
-        pc = landmarks  # already [42][3] from the frontend
-
+        pc       = landmarks
         has_hand = not np.all(np.array(pc) == 0.0)
 
-        # ── motion estimate ──
         motion_val = self._chamfer(self.prev, pc) if self.prev is not None else 0.0
         self.prev  = pc
 
-        self.motion_ema = (
-            self.ema_alpha * motion_val +
-            (1 - self.ema_alpha) * self.motion_ema
-        )
-        is_moving = self.motion_ema > IDLE_MOTION_THRESHOLD
+        is_moving = motion_val > IDLE_MOTION_THRESHOLD
 
-        # ── state machine ──────────────────────────────────────────────────
+        # State machine 
         if self.state == _IDLE:
             if has_hand and is_moving:
                 self.state        = _SIGNING
                 self.idle_counter = 0
                 self.buffer       = [pc]
-                self.motion       = [self.motion_ema]
+                self.motion       = [motion_val]
                 print("[INFO] State → SIGNING")
 
         elif self.state == _SIGNING:
             self.buffer.append(pc)
-            self.motion.append(self.motion_ema)
+            self.motion.append(motion_val)
 
-            # cap buffer to WINDOW_SIZE
+            # Cap buffer to WINDOW_SIZE (keeps most recent frames)
             if len(self.buffer) > WINDOW_SIZE:
                 self.buffer.pop(0)
                 self.motion.pop(0)
@@ -169,14 +178,14 @@ class FslSvmInfer:
                 self.reset()
                 return None
 
-            print("[INFO] Processing gesture...")
+            print(f"[INFO] Processing gesture — {len(self.buffer)} frames in buffer...")
             feat  = self._features(self.buffer, self.motion)
             feat  = self.scaler.transform([feat])
 
+            label      = self.svm.predict(feat)[0]
             probs      = self.svm.predict_proba(feat)[0]
-            idx        = np.argmax(probs)
-            label      = self.svm.classes_[idx]
-            confidence = float(probs[idx])
+            pred_idx   = np.where(self.svm.classes_ == label)[0][0]
+            confidence = float(probs[pred_idx])
 
             print(f"[INFO] Prediction: {label} (confidence: {confidence:.2f})")
 
