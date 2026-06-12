@@ -7,8 +7,6 @@ const VOCAB_CATEGORIES = [
   { name: "Color", words: ["Red", "Blue", "Green", "Yellow", "White", "Black"] }
 ];
 
-const SEND_INTERVAL_MS = 100;
-
 const HAND_CONNECTIONS = [
   [0,1],[1,2],[2,3],[3,4],
   [0,5],[5,6],[6,7],[7,8],
@@ -24,7 +22,6 @@ function drawLandmarks(ctx, landmarks, handednesses, canvasW, canvasH) {
 
   landmarks.forEach((hand, i) => {
     const side = handednesses?.[i]?.[0]?.categoryName;
-    // mirror x to match CSS scaleX(-1) on the video
     const pts  = hand.map(lm => ({
       x: (1 - lm.x) * canvasW,
       y: lm.y * canvasH,
@@ -57,16 +54,15 @@ function drawLandmarks(ctx, landmarks, handednesses, canvasW, canvasH) {
 }
 
 export default function Recognizer() {
-  const videoRef    = useRef(null);
-  const canvasRef   = useRef(null);
-  const intervalRef = useRef(null);
+  const videoRef      = useRef(null);
+  const canvasRef     = useRef(null);
   const landmarkerRef = useRef(null);
 
-  // ── Single ever-increasing timestamp — NEVER reset after landmarker is used ──
+  // Single ever-increasing timestamp — NEVER reset after landmarker is used
   const frameIdxRef = useRef(0);
 
-  // Latest detection result shared between draw loop and WS sender
-  const latestResultRef = useRef(null);
+  // Whether detection is active — read inside rAF loop
+  const isDetectingRef = useRef(false);
 
   const [cameraActive,    setCameraActive]    = useState(false);
   const [cameraError,     setCameraError]     = useState(null);
@@ -116,18 +112,21 @@ export default function Recognizer() {
           setMpReady(true);
         }
       } catch (err) {
-        console.error("MediaPifrom evaluation.confusion import build_confusion_matrix, plot_confusion_matrixpe init failed:", err);
+        console.error("MediaPipe init failed:", err);
       }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  // ── Single detection + draw loop ─────────────────────────────────────────
-  // detectForVideo is called ONLY here. The WS sender reads latestResultRef.
+  // ── Single detection + draw + send loop ──────────────────────────────────
+  // detectForVideo, drawLandmarks, and WS send all happen here in one rAF
+  // tick so every detected frame is sent — no separate interval, no skipping.
   useEffect(() => {
     if (!cameraActive) return;
 
     let rafId;
+    // Target ~30fps to match browser rAF; training was 60fps but webcam
+    // MediaPipe VIDEO mode is effectively capped by rAF (~30fps).
     const FPS    = 30;
     const stepMs = 1000 / FPS;
 
@@ -152,45 +151,35 @@ export default function Recognizer() {
 
       const result = landmarker.detectForVideo(video, timestamp);
 
-      // Share with WS sender
-      latestResultRef.current = result;
-
+      // ── Draw landmarks ──
       const ctx = canvas.getContext("2d");
       drawLandmarks(ctx, result?.landmarks, result?.handednesses, canvas.width, canvas.height);
+
+      if (isDetectingRef.current) {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          const empty = Array.from({ length: 21 }, () => [0, 0, 0]);
+          let left  = empty.map(p => [...p]);
+          let right = empty.map(p => [...p]);
+
+          if (result?.landmarks) {
+            result.landmarks.forEach((handLandmarks, i) => {
+              const side = result.handednesses?.[i]?.[0]?.categoryName;
+              // Raw (unmirrored) coords — backend model trained on these
+              const pts  = handLandmarks.map(lm => [lm.x, lm.y, lm.z]);
+              if (side === "Left")  left  = pts;
+              else                  right = pts;
+            });
+          }
+
+          ws.send(JSON.stringify({ landmarks: [...left, ...right] }));
+        }
+      }
     };
 
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
-  }, [cameraActive, mpReady]);
-
-  // ── Clean up interval on unmount ────────────────────────────────────────
-  useEffect(() => {
-    return () => { clearInterval(intervalRef.current); };
-  }, []);
-
-  // ── WS sender — reads latestResultRef, never calls detectForVideo ────────
-  const sendLandmarks = useCallback(() => {
-    const ws     = wsRef.current;
-    const result = latestResultRef.current;
-
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-    const empty = Array.from({ length: 21 }, () => [0, 0, 0]);
-    let left  = empty.map(p => [...p]);
-    let right = empty.map(p => [...p]);
-
-    if (result?.landmarks) {
-      result.landmarks.forEach((handLandmarks, i) => {
-        const side = result.handednesses?.[i]?.[0]?.categoryName;
-        // raw (unmirrored) coords — backend model trained on these
-        const pts  = handLandmarks.map(lm => [lm.x, lm.y, lm.z]);
-        if (side === "Left")  left  = pts;
-        else                  right = pts;
-      });
-    }
-
-    ws.send(JSON.stringify({ landmarks: [...left, ...right] }));
-  }, [wsRef]);
+  }, [cameraActive, mpReady, wsRef]);
 
   // ── Camera ───────────────────────────────────────────────────────────────
   const startCamera = useCallback(async () => {
@@ -211,9 +200,8 @@ export default function Recognizer() {
   }, []);
 
   const stopCamera = useCallback(() => {
-    clearInterval(intervalRef.current);
-    intervalRef.current     = null;
-    latestResultRef.current = null;
+    // Stop detecting first
+    isDetectingRef.current = false;
     disconnectWebSocket();
     setIsDetecting(false);
     setDetectedGesture("—");
@@ -233,20 +221,20 @@ export default function Recognizer() {
   // ── Detection toggle ─────────────────────────────────────────────────────
   const toggleDetection = useCallback(() => {
     setIsDetecting((prev) => {
-      if (!prev) {
+      const next = !prev;
+      isDetectingRef.current = next;
+
+      if (next) {
         setLogs([]);
         connectWebSocket();
-        intervalRef.current = setInterval(sendLandmarks, SEND_INTERVAL_MS);
       } else {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
         disconnectWebSocket();
         setDetectedGesture("—");
         setLogs([]);
       }
-      return !prev;
+      return next;
     });
-  }, [connectWebSocket, disconnectWebSocket, sendLandmarks]);
+  }, [connectWebSocket, disconnectWebSocket]);
 
   const toggleCategory = (name) =>
     setOpenCategories((prev) => ({ ...prev, [name]: !prev[name] }));

@@ -3,7 +3,7 @@ import json
 from ml.fsl_svm_infer import FslSvmInfer, _SIGNING, _PREDICTING
 
 router = APIRouter()
-MODEL_PATH = "./models/fsl-svm-2-catv2.pkl"
+MODEL_PATH = "./models/fsl-svm-2-catv4.pkl"
 
 
 @router.websocket("/ws")
