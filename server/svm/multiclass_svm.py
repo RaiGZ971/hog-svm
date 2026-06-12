@@ -47,7 +47,8 @@ class MulticlassSVM:
         """
         votes = np.zeros((len(X), len(self.classes_)), dtype=int)
         for (i, j), svm in self._classifiers.items():
-            for k, p in enumerate(svm.predict(X)):
+            preds = svm.predict(X)
+            for k, p in enumerate(preds):
                 if p == 1: votes[k, i] += 1
                 else:      votes[k, j] += 1
         return self.classes_[np.argmax(votes, axis=1)]

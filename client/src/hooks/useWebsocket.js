@@ -1,6 +1,6 @@
 import { useRef, useCallback } from "react";
 
-export function useWebSocket(setDetectedGesture) {
+export function useWebSocket(onMessage) {
   const wsRef = useRef(null);
 
   const connectWebSocket = useCallback(() => {
@@ -12,7 +12,7 @@ export function useWebSocket(setDetectedGesture) {
     };
 
     ws.onmessage = (event) => {
-      setDetectedGesture(event.data);
+      onMessage(event.data);
     };
 
     ws.onerror = (err) => {
@@ -22,7 +22,7 @@ export function useWebSocket(setDetectedGesture) {
     ws.onclose = () => {
       console.log("WebSocket closed");
     };
-  }, [setDetectedGesture]);
+  }, [onMessage]);
 
   const disconnectWebSocket = useCallback(() => {
     if (wsRef.current) {
@@ -37,4 +37,3 @@ export function useWebSocket(setDetectedGesture) {
     wsRef,
   };
 }
-

@@ -80,7 +80,7 @@ class BinarySVM:
 
     def predict(self, X):
         # Returns the predicted class label (-1 or +1) for each sample.
-        return np.sign(self._decision(X)).astype(int)
+        return np.where(self._decision(X) >= 0, 1, -1).astype(int)
 
     def decision_function(self, X):
         # Returns raw float scores before converting to labels.

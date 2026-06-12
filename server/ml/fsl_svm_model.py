@@ -1,320 +1,3 @@
-# import numpy as np
-# import pandas as pd
-# from tqdm import tqdm
-#
-# import mediapipe as mp
-# import cv2
-# from scipy.spatial.distance import cdist
-# import joblib
-#
-# from sklearn.svm import SVC
-# from sklearn.preprocessing import StandardScaler
-# from sklearn.model_selection import GridSearchCV, StratifiedKFold
-# from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
-# import matplotlib.pyplot as plt
-#
-# import os
-# from dotenv import load_dotenv
-#
-# load_dotenv()
-#
-# KEYFRAME_K = int(os.getenv("HYPERPARAMETER_K", 30))
-#
-#
-# class FslSvm:
-#     def __init__(self, training, testing):
-#         self.raw_train_data = pd.read_csv(training)
-#         self.raw_test_data = pd.read_csv(testing)
-#
-#         self.X_train, self.y_train = [], []
-#         self.X_test, self.y_test = [], []
-#
-#         self.svm = None
-#         self.scaler = StandardScaler()
-#
-#         self.model_path = os.path.join(
-#             os.path.dirname(__file__),
-#             "hand_landmarker.task"
-#         )
-#
-#         self.mp = None 
-#
-#     def _create_mp_task_video(self):
-#         BaseOptions = mp.tasks.BaseOptions
-#         HandLandmarker = mp.tasks.vision.HandLandmarker
-#         HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
-#         VisionRunningMode = mp.tasks.vision.RunningMode
-#
-#         options = HandLandmarkerOptions(
-#             base_options=BaseOptions(model_asset_path=self.model_path),
-#             running_mode=VisionRunningMode.VIDEO,
-#             num_hands=2
-#         )
-#
-#         return HandLandmarker.create_from_options(options)
-#
-#     def _extract_landmarker_point_cloud(self, frame, timestamp_ms):
-#         """
-#         Extract 42-point (left + right hand) point cloud from a single frame.
-#         Uses timestamp_ms that is local to the current video so MediaPipe VIDEO
-#         mode always receives strictly-increasing timestamps.
-#         """
-#         left_hand_points = [[0.0, 0.0, 0.0]] * 21
-#         right_hand_points = [[0.0, 0.0, 0.0]] * 21
-#
-#         frame = cv2.resize(frame, (320, 240))
-#
-#         frame = cv2.flip(frame, 1)
-#
-#         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-#         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-#
-#         results = self.mp.detect_for_video(mp_image, int(timestamp_ms))
-#
-#         for idx, hand in enumerate(results.hand_landmarks):
-#             hand_type = results.handedness[idx][0].category_name
-#             points = [[lm.x, lm.y, lm.z] for lm in hand]
-#
-#             if hand_type == "Left":
-#                 left_hand_points = points
-#             else:
-#                 right_hand_points = points
-#
-#         return left_hand_points + right_hand_points
-#
-#     def _chamfer_distance(self, prev_point_cloud, pres_point_cloud):
-#         if not prev_point_cloud or not pres_point_cloud:
-#             return 0.0
-#
-#         pc1 = np.array(prev_point_cloud)
-#         pc2 = np.array(pres_point_cloud)
-#
-#         d1 = cdist(pc1, pc2).min(axis=1).mean()
-#         d2 = cdist(pc2, pc1).min(axis=1).mean()
-#
-#         return d1 + d2
-#
-#     def _select_keyframes(self, motion):
-#         """
-#         Select keyframes and always return exactly KEYFRAME_K indices so
-#         every feature vector has the same length.
-#         """
-#         k = KEYFRAME_K
-#         n = len(motion)
-#
-#         keyframes = set()
-#         keyframes.add(0)
-#         keyframes.add(n - 1)
-#
-#         for t in range(1, n - 1):
-#             if motion[t] > motion[t - 1] and motion[t] > motion[t + 1]:
-#                 keyframes.add(t)
-#
-#         top_k = np.argsort(motion)[-k:]
-#         keyframes.update(top_k)
-#
-#         keyframes = sorted(keyframes)
-#
-#         # FIX #3 – pad by repeating the last frame, or truncate, to exactly k
-#         while len(keyframes) < k:
-#             keyframes.append(keyframes[-1])
-#
-#         return keyframes[:k]
-#
-#     def _extract_svm_features(self, keyframes, point_clouds):
-#         """
-#         Always produces a feature vector of fixed length:
-#             KEYFRAME_K * 42 * 3 * 4 = KEYFRAME_K * 504
-#         """
-#         selected = [point_clouds[i] for i in keyframes]
-#         selected = np.array(selected)               # (k, 42, 3)
-#         flat = selected.reshape(len(selected), -1)  # (k, 126)
-#
-#         features = []
-#         features.extend(flat.mean(axis=0))   # average pose
-#         features.extend(flat.std(axis=0))    # motion variation
-#         features.extend(flat.min(axis=0))    # extreme positions (min)
-#         features.extend(flat.max(axis=0))    # extreme positions (max)
-#
-#         return np.array(features)            # always length k*126*4 = k*504
-#
-#     def _video_to_features(self, video_path):
-#         self.mp = self._create_mp_task_video()
-#
-#         cap = cv2.VideoCapture(video_path)
-#
-#         if not cap.isOpened():
-#             print(f"[WARN] Could not open: {video_path}")
-#             return None
-#
-#         fps = cap.get(cv2.CAP_PROP_FPS) or 30
-#         step_ms = int(1000 / fps)
-#
-#         frame_timestamp_ms = 0
-#
-#         motion = []
-#         point_clouds = []
-#         hand_detected = []
-#         prev_point_cloud = None
-#
-#         while True:
-#             ret, frame = cap.read()
-#             if not ret:
-#                 break
-#
-#             pres_point_cloud = self._extract_landmarker_point_cloud(
-#                 frame, frame_timestamp_ms
-#             )
-#
-#             if pres_point_cloud is not None:
-#                 flat = np.array(pres_point_cloud)
-#                 has_hand = not np.all(flat == 0.0)
-#                 hand_detected.append(has_hand)
-#
-#                 point_clouds.append(pres_point_cloud)
-#
-#                 if prev_point_cloud is not None:
-#                     m = self._chamfer_distance(prev_point_cloud, pres_point_cloud)
-#                     motion.append(m)
-#                 else:
-#                     motion.append(0.0)
-#
-#                 prev_point_cloud = pres_point_cloud
-#
-#             frame_timestamp_ms += step_ms
-#
-#         cap.release()
-#
-#         if any(hand_detected):
-#             first = next(i for i, v in enumerate(hand_detected) if v)
-#             last  = len(hand_detected) - 1 - next(
-#                 i for i, v in enumerate(reversed(hand_detected)) if v
-#             )
-#             point_clouds = point_clouds[first:last + 1]
-#             motion       = motion[first:last + 1]
-#             print(f"[INFO] Hand present in frames {first}–{last} "
-#                   f"({last - first + 1} frames kept out of {len(hand_detected)})")
-#         else:
-#             print(f"[WARN] No hand detected in any frame: {video_path}")
-#             return None
-#
-#         if len(point_clouds) < KEYFRAME_K:
-#             print(f"[WARN] Not enough hand frames in: {video_path} "
-#                   f"(got {len(point_clouds)}, need {KEYFRAME_K})")
-#             return None
-#
-#         keyframes = self._select_keyframes(motion)
-#         features = self._extract_svm_features(keyframes, point_clouds)
-#
-#         return features
-#
-#     def _build_Xy(self):
-#         train_features, train_labels = [], []
-#         test_features, test_labels = [], []
-#
-#         for row in tqdm(self.raw_train_data.itertuples(),
-#                         total=len(self.raw_train_data),
-#                         desc="Train"):
-#             feature = self._video_to_features(row.vid_path)
-#             if feature is not None:
-#                 train_features.append(feature)
-#                 train_labels.append(row.label)
-#
-#         for row in tqdm(self.raw_test_data.itertuples(),
-#                         total=len(self.raw_test_data),
-#                         desc="Test"):
-#             feature = self._video_to_features(row.vid_path)
-#             if feature is not None:
-#                 test_features.append(feature)
-#                 test_labels.append(row.label)
-#
-#         self.X_train = np.array(train_features)
-#         self.y_train = np.array(train_labels)
-#         self.X_test = np.array(test_features)
-#         self.y_test = np.array(test_labels)
-#
-#         print("Train shape:", self.X_train.shape)
-#         print("Test shape: ", self.X_test.shape)
-#
-#         self.X_train = self.scaler.fit_transform(self.X_train)
-#         self.X_test = self.scaler.transform(self.X_test)
-#
-#     def train_svm_model(self):
-#         if len(self.X_train) == 0:
-#             self._build_Xy()
-#
-#         param_grid = {
-#             "C": [0.1, 1, 10, 100],
-#             "gamma": ["scale", 0.01, 0.001, 0.0001],
-#             "kernel": ["rbf"]
-#         }
-#
-#         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-#
-#         base_model = SVC(probability=True)
-#
-#         grid = GridSearchCV(
-#             estimator=base_model,
-#             param_grid=param_grid,
-#             cv=cv,
-#             scoring="accuracy",
-#             n_jobs=-1,
-#             verbose=1
-#         )
-#
-#         grid.fit(self.X_train, self.y_train)
-#
-#         self.svm = grid.best_estimator_
-#
-#         print("SVM trained successfully.")
-#         print("Best parameters:", grid.best_params_)
-#         print("Best CV accuracy:", grid.best_score_)
-#
-#     def evaluate_svm_model(self):
-#         if self.svm is None:
-#             return
-#
-#         y_pred = self.svm.predict(self.X_test)
-#
-#         print(classification_report(self.y_test, y_pred, zero_division=0))
-#
-#         cm = confusion_matrix(self.y_test, y_pred)
-#         ConfusionMatrixDisplay(cm, display_labels=self.svm.classes_).plot(
-#             xticks_rotation="vertical"
-#         )
-#
-#         plt.title("FSL-SVM (Optimized Landmark Model)")
-#         plt.tight_layout()
-#         plt.show()
-#
-#         print("Train Accuracy:", self.svm.score(self.X_train, self.y_train))
-#         print("Test Accuracy: ", self.svm.score(self.X_test, self.y_test))
-#
-#     def run_svm_model(self, video_path):
-#         feat = self._video_to_features(video_path)
-#
-#         print("FEATURE:", feat)
-#         feat = self.scaler.transform([feat])
-#
-#         probabilities = self.svm.predict_proba(feat)[0]
-#         max_prob_index = np.argmax(probabilities)
-#         confidence = probabilities[max_prob_index]
-#
-#         pred_label = self.svm.classes_[max_prob_index]
-#
-#         print("CONFIDENCE: ", float(confidence))
-#         print("LABEL: ", pred_label)
-#
-#     def save_svm_model(self, path="./models/fsl-svm-2-catv2.pkl"):
-#         joblib.dump({"model": self.svm, "scaler": self.scaler}, path)
-#
-#     def load_svm_model(self, path="./models/fsl-svm-2-catv2.pkl"):
-#         data = joblib.load(path)
-#         self.svm = data["model"]
-#         self.scaler = data["scaler"]
-#
-
-
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -328,8 +11,9 @@ from svm.stratified_kfold import StratifiedKFold
 from svm.grid_search_cv import GridSearchCV
 from svm.standard_scaler import StandardScaler
 
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
-import matplotlib.pyplot as plt
+from evaluation.metrics import compute_accuracy, compute_class_metrics
+from evaluation.confusion import build_confusion_matrix, plot_confusion_matrix
+from evaluation.report import print_classification_report
 
 import os
 from dotenv import load_dotenv
@@ -434,7 +118,6 @@ class FslSvm:
         right_hand_points = [[0.0, 0.0, 0.0]] * 21
 
         frame    = cv2.resize(frame, (320, 240))
-        frame    = cv2.flip(frame, 1)
         rgb      = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
 
@@ -570,16 +253,14 @@ class FslSvm:
         print("Train shape:", self.X_train.shape)
         print("Test shape: ", self.X_test.shape)
 
-        self.X_train = self.scaler.fit_transform(self.X_train)
-        self.X_test  = self.scaler.transform(self.X_test)
-
     def train_svm_model(self):
         if len(self.X_train) == 0:
             self._build_Xy()
+            self.store_Xy() 
 
         param_grid = {
-            "C":      [0.1, 1, 10, 100],
-            "gamma":  ["scale", 0.01, 0.001, 0.0001],
+            "C":      [0.1, 1, 10, 100],                #Controls how much the SVM cares about misclassifying training samples.
+            "gamma":  ["scale", 0.01, 0.001, 0.0001],   #Controls how far the influence of a single training sample reaches.
             "max_passes": [10]
         }
 
@@ -594,24 +275,44 @@ class FslSvm:
         print("Best parameters:", grid.best_params_)
         print("Best CV accuracy:", grid.best_score_)
 
-    def evaluate_svm_model(self):
+    def evaluate_svm_model(self): 
+        """
+        Evaluate the trained SVM on the test set (and report train accuracy).
+    
+        Prints:
+            - Classification report  (precision / recall / F1 / support per class)
+            - Train and test accuracy
+            - ASCII confusion matrix
+        """
         if self.svm is None:
+            print("No trained SVM found. Skipping evaluation.")
             return
 
-        y_pred = self.svm.predict(self.X_test)
-        print(classification_report(self.y_test, y_pred, zero_division=0))
+        # predictions
+        X_trained_scaled = self.scaler.transform(self.X_train)
+        X_test_scaled = self.scaler.transform(self.X_test)
+ 
+        y_pred       = self.svm.predict(X_test_scaled)
+        y_train_pred = self.svm.predict(X_trained_scaled)
+    
+        y_true_list  = list(self.y_test)
+        y_pred_list  = list(y_pred)
 
-        cm = confusion_matrix(self.y_test, y_pred)
-        ConfusionMatrixDisplay(cm, display_labels=self.svm.classes_).plot(
-            xticks_rotation="vertical"
-        )
-        plt.title("FSL-SVM (Normalised Point Cloud + Velocity)")
-        plt.tight_layout()
-        plt.show()
+        # classification
+        print_classification_report(y_true_list, y_pred_list)
 
-        print("Train Accuracy:", self.svm.score(self.X_train, self.y_train))
-        print("Test Accuracy: ", self.svm.score(self.X_test,  self.y_test))
+        # accuracy
+        train_acc = compute_accuracy(list(self.y_train), list(y_train_pred))
+        test_acc  = compute_accuracy(y_true_list, y_pred_list)
+    
+        print(f"Train Accuracy: {train_acc:.4f}")
+        print(f"Test  Accuracy: {test_acc:.4f}\n")
 
+        # confusion matrix
+        classes, _ = compute_class_metrics(y_true_list, y_pred_list)
+        cm = build_confusion_matrix(y_true_list, y_pred_list, classes)
+        plot_confusion_matrix(cm, classes)
+ 
     def run_svm_model(self, video_path):
         feat = self._video_to_features(video_path)
         if feat is None:
@@ -630,7 +331,33 @@ class FslSvm:
     def save_svm_model(self, path="./models/fsl-svm-2-catv3.pkl"):
         joblib.dump({"model": self.svm, "scaler": self.scaler}, path)
 
-    def load_svm_model(self, path="./models/fsl-svm-2-catv3.pkl"):
-        data        = joblib.load(path)
+    def load_svm_model(
+        self,
+        path="./models/fsl-svm-2-catv3.pkl",
+        train_features=None,
+        train_labels=None,
+        test_features=None,
+        test_labels=None
+    ):
+        data = joblib.load(path)
+
         self.svm    = data["model"]
         self.scaler = data["scaler"]
+
+        if train_features:
+            self.X_train = joblib.load(train_features)
+
+        if train_labels:
+            self.y_train = joblib.load(train_labels)
+
+        if test_features:
+            self.X_test = joblib.load(test_features)
+
+        if test_labels:
+            self.y_test = joblib.load(test_labels)
+
+    def store_Xy(self):
+        joblib.dump(self.X_train, "./data/train_features.npy")
+        joblib.dump(self.y_train, "./data/train_labels.npy")
+        joblib.dump(self.X_test, "./data/test_features.npy")
+        joblib.dump(self.y_test, "./data/test_labels.npy")
