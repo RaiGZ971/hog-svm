@@ -362,10 +362,8 @@ class FslSvm:
 
         feat_scaled = self.scaler.transform(feat.reshape(1, -1))
         
-        # ✅ predict() for label (majority vote — matches evaluate_svm_model)
         pred_label  = self.svm.predict(feat_scaled)[0]
         
-        # ✅ predict_proba() only for the confidence of the winning label
         probabilities = self.svm.predict_proba(feat_scaled)[0]
         pred_idx      = np.where(self.svm.classes_ == pred_label)[0][0]
         confidence    = probabilities[pred_idx]
@@ -373,12 +371,12 @@ class FslSvm:
         print("CONFIDENCE:", float(confidence))
         print("LABEL:     ", pred_label)
 
-    def save_svm_model(self, path="./models/fsl-svm-2-catv4.pkl"):
+    def save_svm_model(self, path="./models/fsl-svm-2-catv6.pkl"):
         joblib.dump({"model": self.svm, "scaler": self.scaler}, path)
 
     def load_svm_model(
         self,
-        path="./models/fsl-svm-2-catv4.pkl",
+        path="./models/fsl-svm-2-catv6.pkl",
         train_features=None,
         train_labels=None,
         test_features=None,
@@ -399,7 +397,99 @@ class FslSvm:
             self.y_test = joblib.load(test_labels)
 
     def store_Xy(self):
-        joblib.dump(self.X_train, "./data/train_features.npy")
-        joblib.dump(self.y_train, "./data/train_labels.npy")
-        joblib.dump(self.X_test,  "./data/test_features.npy")
-        joblib.dump(self.y_test,  "./data/test_labels.npy")
+        joblib.dump(self.X_train, "./data/train_features_v3.npy")
+        joblib.dump(self.y_train, "./data/train_labels_v3.npy")
+        joblib.dump(self.X_test,  "./data/test_features_v3.npy")
+        joblib.dump(self.y_test,  "./data/test_labels_v3.npy")
+
+    def append_dataset(
+        self,
+        new_train_csv=None,
+        new_test_csv=None,
+        train_features_path="./data/train_features_v2.npy",
+        train_labels_path="./data/train_labels_v2.npy",
+        test_features_path="./data/test_features_v2.npy",
+        test_labels_path="./data/test_labels_v2.npy",
+    ):
+        # Load old features and labels
+        X_train_old = joblib.load(train_features_path)
+        y_train_old = joblib.load(train_labels_path)
+
+        X_test_old = joblib.load(test_features_path)
+        y_test_old = joblib.load(test_labels_path)
+
+
+        # Extract features and labels from new CSVs
+        new_train_features = []
+        new_train_labels = []
+
+        if new_train_csv is not None:
+            train_df = pd.read_csv(new_train_csv)
+
+            for row in tqdm(
+                train_df.itertuples(),
+                total=len(train_df),
+                desc="New Train"
+            ):
+                feat = self._video_to_features(row.vid_path)
+
+                if feat is not None:
+                    new_train_features.append(feat)
+                    new_train_labels.append(row.label)
+
+        new_test_features = []
+        new_test_labels = []
+
+        if new_test_csv is not None:
+            test_df = pd.read_csv(new_test_csv)
+
+            for row in tqdm(
+                test_df.itertuples(),
+                total=len(test_df),
+                desc="New Test"
+            ):
+                feat = self._video_to_features(row.vid_path)
+
+                if feat is not None:
+                    new_test_features.append(feat)
+                    new_test_labels.append(row.label)
+
+        # Convert to numpy arrays
+        new_train_features = np.array(new_train_features)
+        new_train_labels = np.array(new_train_labels)
+
+        new_test_features = np.array(new_test_features)
+        new_test_labels = np.array(new_test_labels)
+
+        # Merge old and new data
+        if len(new_train_features) > 0:
+            self.X_train = np.concatenate(
+                [X_train_old, new_train_features],
+                axis=0
+            )
+            self.y_train = np.concatenate(
+                [y_train_old, new_train_labels],
+                axis=0
+            )
+        else:
+            self.X_train = X_train_old
+            self.y_train = y_train_old
+
+        if len(new_test_features) > 0:
+            self.X_test = np.concatenate(
+                [X_test_old, new_test_features],
+                axis=0
+            )
+            self.y_test = np.concatenate(
+                [y_test_old, new_test_labels],
+                axis=0
+            )
+        else:
+            self.X_test = X_test_old
+            self.y_test = y_test_old
+
+        print("Merged train shape:", self.X_train.shape)
+        print("Merged test shape :", self.X_test.shape)
+
+        self.store_Xy()
+        

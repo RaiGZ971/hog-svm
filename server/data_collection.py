@@ -13,7 +13,7 @@ train_df["category"] = train_df["category"].astype(str).str.strip().str.upper()
 test_df["category"] = test_df["category"].astype(str).str.strip().str.upper()
 
 # filter the dataset to wanted category e
-allowed = ["GREETING", "COLOR"]
+allowed = ["CALENDAR", "DAYS"]
 
 train_df = train_df[train_df["category"].isin(allowed)].reset_index(drop=True)
 test_df = test_df[test_df["category"].isin(allowed)].reset_index(drop=True)
@@ -34,9 +34,9 @@ print(test_df["category"].value_counts())
 # save NEW filtered version
 out_dir = "./csvs"
 
-train_df.to_csv(os.path.join(out_dir, "train_filtered.csv"), index=False)
-test_df.to_csv(os.path.join(out_dir, "test_filtered.csv"), index=False)
+train_df.to_csv(os.path.join(out_dir, "train_filtered_v3.csv"), index=False)
+test_df.to_csv(os.path.join(out_dir, "test_filtered_v3.csv"), index=False)
 
 print("\nDone! Saved: ")
-print("- train_filtered.csv")
-print("- test_filtered.csv")
+print("- train_filtered_v3.csv")
+print("- test_filtered_v3.csv")
