@@ -1,14 +1,16 @@
-from fsl_svm_model import FslSvm
+from ml.fsl_svm_model import FslSvm
 
-model = FslSvm("/home/code871/Git/fsl-svm/server/csvs/train.csv", "/home/code871/Git/fsl-svm/server/csvs/test.csv")
+model = FslSvm("./csvs/train_filtered.csv", "./csvs/test_filtered.csv")
 
-##for training the model
-#model.train_svm_model()
-#model.save_svm_model()
-#model.evaluate_svm_model()
-
-#for loading the model
-model.print_training_testing()
-model.load_svm_model()
+# # training model
+# model.train_svm_model()
+# model.save_svm_model()
+# model.evaluate_svm_model()
+# #
+# # # loading model
+# model.load_svm_model()
+# model.run_svm_model("/home/code871/Git/fsl-svm/server/clips/86/5.MOV")
+#
+model.load_svm_model(train_features="/home/code871/Git/fsl-svm/server/data/train_features.npy", train_labels="/home/code871/Git/fsl-svm/server/data/train_labels.npy", test_features="/home/code871/Git/fsl-svm/server/data/test_features.npy", test_labels="/home/code871/Git/fsl-svm/server/data/test_labels.npy")
 model.evaluate_svm_model()
 

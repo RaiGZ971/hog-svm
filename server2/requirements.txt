@@ -1,0 +1,10 @@
+numpy
+pandas
+matplotlib
+opencv-python
+scikit-image
+scikit-learn
+joblib
+tqdm
+fastapi
+uvicorn[standard]

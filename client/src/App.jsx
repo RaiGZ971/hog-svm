@@ -6,6 +6,8 @@ import Footer from "./components/Footer.jsx";
 
 import Home from "./pages/Home.jsx";
 import Recognizer from "./pages/Recognizer.jsx";
+import Alphabets from "./pages/Alphabet.jsx";
+import Lstm from "./pages/Lstm.jsx"; 
 
 function App() {
   return (
@@ -17,6 +19,8 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/recognizer" element={<Recognizer />} />
+            <Route path="/alphabet" element={<Alphabets />} />
+            <Route path="/lstm" element={<Lstm />} />
           </Routes>
         </main>
 
