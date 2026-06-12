@@ -4,7 +4,8 @@ export function useWebSocket(onMessage) {
   const wsRef = useRef(null);
 
   const connectWebSocket = useCallback(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws");
+    //const ws = new WebSocket("ws://localhost:8000/ws");
+    const ws = new WebSocket("wss://kcrk46sc-8000.asse.devtunnels.ms/ws");
     wsRef.current = ws;
 
     ws.onopen = () => {

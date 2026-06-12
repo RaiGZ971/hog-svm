@@ -1,16 +1,55 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from threading import Lock
 import json
 from ml.fsl_svm_infer import FslSvmInfer, _SIGNING, _PREDICTING
+from pydantic import BaseModel
 
 router = APIRouter()
 MODEL_PATH = "./models/fsl-svm-2-catv4.pkl"
 
+# ── Model Manager ─────────────────────────────
+class ModelManager:
+    def __init__(self, path):
+        self.lock = Lock()
+        self.model_path = path
+        self.infer = FslSvmInfer(path)
+
+    def reload(self, new_path):
+        with self.lock:
+            self.model_path = new_path
+            self.infer = FslSvmInfer(new_path)
+
+    def get(self):
+        return self.infer
+
+
+model_manager = ModelManager(MODEL_PATH)
+
+class ModelRequest(BaseModel):
+    model:str
+
+# PATCH: update model 
+@router.patch("/model")
+async def update_model(data: ModelRequest):
+    model = data.model
+
+    if model == "Model v1":
+        model_manager.reload("./models/fsl-svm-2-catv4.pkl")
+    elif model == "Model v2":
+        model_manager.reload("./models/fsl-svm-2-catv5.pkl")
+    elif model == "Model v3":
+        model_manager.reload("./models/fsl-svm-2-catv6.pkl")
+
+    return {
+        "message": "model updated",
+        "active_model": model
+    }
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    infer = FslSvmInfer(MODEL_PATH)
-    prev_state = infer.state
+
+    prev_state = None
 
     try:
         while True:
@@ -25,6 +64,8 @@ async def websocket_endpoint(websocket: WebSocket):
             landmarks = payload.get("landmarks")
             if landmarks is None or len(landmarks) != 42:
                 continue
+
+            infer = model_manager.get()
 
             prediction = infer.predict(landmarks)
 

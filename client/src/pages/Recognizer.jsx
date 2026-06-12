@@ -2,10 +2,64 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useWebSocket } from "../hooks/useWebsocket";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 
-const VOCAB_CATEGORIES = [
-  { name: "Greetings", words: ["Good morning", "Good afternoon", "Good evening", "Hello", "Goodbye", "Thank you", "You're welcome"] },
-  { name: "Color", words: ["Red", "Blue", "Green", "Yellow", "White", "Black"] }
-];
+const MODEL_VOCABS = {
+  "Model v1": [
+    {
+      name: "Greetings",
+      words: ["Good morning", "Good afternoon", "Good evening", "Hello", "How are you", "I'm fine", "Nice to meet you", "Thank you", "You're welcom", "See you tomorrow"]
+    },
+    {
+      name: "Colors",
+      words: ["Blue", "Green", "Red", "Brown", "Black", "White", "Yellow", "Orange", "Gray", "Pink", "Violet", "Light", "Dark"]
+    }
+  ],
+
+  "Model v2": [
+    {
+      name: "Greetings",
+      words: ["Good morning", "Good afternoon", "Good evening", "Hello", "How are you", "I'm fine", "Nice to meet you", "Thank you", "You're welcom", "See you tomorrow"]
+    },
+    {
+      name: "Colors",
+      words: ["Blue", "Green", "Red", "Brown", "Black", "White", "Yellow", "Orange", "Gray", "Pink", "Violet", "Light", "Dark"]
+    },
+    {
+      name: "Survival",
+      words: ["Understand", "Don't understand", "Know", "Don't know", "No", "Yes", "Wrong", "Correct", "Slow", "Fast"]
+    },
+    {
+      name: "Number",
+      words: ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"]
+    }
+  ],
+
+  "Model v3": [
+    {
+      name: "Greetings",
+      words: ["Good morning", "Good afternoon", "Good evening", "Hello", "How are you", "I'm fine", "Nice to meet you", "Thank you", "You're welcom", "See you tomorrow"]
+    },
+    {
+      name: "Colors",
+      words: ["Blue", "Green", "Red", "Brown", "Black", "White", "Yellow", "Orange", "Gray", "Pink", "Violet", "Light", "Dark"]
+    },
+    {
+      name: "Survival",
+      words: ["Understand", "Don't understand", "Know", "Don't know", "No", "Yes", "Wrong", "Correct", "Slow", "Fast"]
+    },
+    {
+      name: "Number",
+      words: ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"]
+    },
+    {
+      name: "Calendar",
+      words: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "Novermber", "December"]
+    },
+    {
+      name: "Days",
+      words: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Today", "Tommorow", "Yesterday"]
+    }
+  ]
+};
 
 const HAND_CONNECTIONS = [
   [0,1],[1,2],[2,3],[3,4],
@@ -68,9 +122,10 @@ export default function Recognizer() {
   const [cameraError,     setCameraError]     = useState(null);
   const [detectedGesture, setDetectedGesture] = useState("—");
   const [isDetecting,     setIsDetecting]     = useState(false);
-  const [openCategories,  setOpenCategories]  = useState({ Greetings: true });
   const [logs,            setLogs]            = useState([]);
   const [mpReady,         setMpReady]         = useState(false);
+  const [selectedModel, setSelectedModel] = useState("Model v1");
+  const [openCategories, setOpenCategories] = useState({});
 
   const addLog = useCallback((text) => {
     setLogs(prev => {
@@ -101,7 +156,7 @@ export default function Recognizer() {
         const landmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+              "../../public/model/hand_landmarker.task",
             delegate: "GPU",
           },
           runningMode: "VIDEO",
@@ -241,6 +296,25 @@ export default function Recognizer() {
 
   const canDetect = cameraActive && mpReady;
 
+  const updateModel = async (modelName) => {
+    try {
+      const res = await fetch("http://localhost:8000/model", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: modelName,
+        }),
+      });
+
+      const data = await res.json();
+      console.log("Model updated:", data);
+    } catch (err) {
+      console.error("Failed to update model:", err);
+    }
+  };
+
   return (
     <div style={{ width: "100%", fontFamily: "'DM Sans', sans-serif" }}>
 
@@ -267,6 +341,36 @@ export default function Recognizer() {
             : "Loading hand tracking model…"}
         </p>
         <hr style={{ border: "none", borderTop: "1px solid #f1f5f9", margin: 0 }} />
+      </div>
+      
+      {/* Model Selector */}
+      <div style={{ padding: "0 8% 12px" }}>
+        <label style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>
+          Select Model
+        </label>
+
+        <select
+          value={selectedModel}
+          onChange={(e) => {
+            const value = e.target.value;
+            setSelectedModel(value);
+            updateModel(value);
+          }}
+          style={{
+            marginLeft: "10px",
+            padding: "8px 12px",
+            borderRadius: "8px",
+            border: "1px solid #e2e8f0",
+            fontSize: "13px",
+            fontWeight: 500
+          }}
+        >
+          {Object.keys(MODEL_VOCABS).map((model) => (
+            <option key={model} value={model}>
+              {model}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Main grid */}
@@ -418,35 +522,7 @@ export default function Recognizer() {
                 </button>
               </>
             )}
-          </div>
-
-          {/* Console log */}
-          {isDetecting && (
-            <div style={{
-              background: "#0f172a", borderRadius: "10px",
-              padding: "12px 16px", fontFamily: "'Space Mono', monospace",
-              fontSize: "12px", color: "#94a3b8",
-              maxHeight: "160px", overflowY: "auto",
-              display: "flex", flexDirection: "column", gap: "4px",
-            }}>
-              <p style={{
-                margin: "0 0 8px", fontSize: "10px", letterSpacing: "2px",
-                textTransform: "uppercase", color: "#475569",
-              }}>
-                Console
-              </p>
-              {logs.length === 0 && (
-                <span style={{ color: "#334155" }}>Waiting for gesture...</span>
-              )}
-              {logs.map(log => (
-                <div key={log.id} style={{ display: "flex", gap: "12px" }}>
-                  <span style={{ color: "#334155", minWidth: "70px" }}>{log.time}</span>
-                  <span>{log.text}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
+          </div> 
         </div>
 
         {/* RIGHT — Vocabulary panel */}
@@ -463,7 +539,7 @@ export default function Recognizer() {
           </p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            {VOCAB_CATEGORIES.map((cat) => {
+            {MODEL_VOCABS[selectedModel].map((cat) => {
               const open = openCategories[cat.name];
               return (
                 <div key={cat.name}>
