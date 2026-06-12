@@ -156,7 +156,7 @@ export default function Recognizer() {
         const landmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath:
-              "../../public/model/hand_landmarker.task",
+              "/model/hand_landmarker.task",
             delegate: "GPU",
           },
           runningMode: "VIDEO",
@@ -298,7 +298,7 @@ export default function Recognizer() {
 
   const updateModel = async (modelName) => {
     try {
-      const res = await fetch("http://localhost:8000/model", {
+      const res = await fetch("https://kcrk46sc-8000.asse.devtunnels.ms/model", {         //http://localhost:8000/model
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
