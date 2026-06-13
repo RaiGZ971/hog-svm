@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useWebSocket } from "../hooks/useWebsocket";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
+import cameraIcon from "../assets/camera.svg";
+import handIcon from "../assets/hand.svg";
 
 const MODEL_VOCABS = {
   "Model v1": [
@@ -420,7 +422,16 @@ export default function Recognizer() {
                 flexDirection: "column", justifyContent: "center",
                 alignItems: "center", gap: "10px",
               }}>
-                <div style={{ fontSize: "48px" }}>📷</div>
+                <img 
+                  src={cameraIcon} 
+                  alt="Camera icon" 
+                  style={{ 
+                    width: "48px", 
+                    height: "48px", 
+                    marginBottom: "8px", 
+                    transform: "scale(4.0)" 
+                  }} 
+                />
                 <p style={{ fontSize: "14px", color: "#666", margin: 0 }}>
                   {cameraError || "Camera not started"}
                 </p>
@@ -480,9 +491,16 @@ export default function Recognizer() {
               width: "clamp(44px, 5vw, 60px)", height: "clamp(44px, 5vw, 60px)",
               borderRadius: "50%", background: "rgba(229,62,62,0.08)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: "clamp(20px, 2.5vw, 26px)",
             }}>
-              ✋
+              <img 
+                src={handIcon} 
+                alt="Hand icon" 
+                style={{ 
+                  width: "clamp(24px, 3vw, 32px)", 
+                  height: "clamp(24px, 3vw, 32px)",
+                  transform: "scale(4.0)"
+                }} 
+              />
             </div>
           </div>
 
