@@ -360,23 +360,21 @@ class FslSvm:
             print("[WARN] Could not extract features from video.")
             return
 
-        feat_scaled = self.scaler.transform(feat.reshape(1, -1))
-        
-        pred_label  = self.svm.predict(feat_scaled)[0]
-        
+        feat_scaled   = self.scaler.transform(feat.reshape(1, -1))
         probabilities = self.svm.predict_proba(feat_scaled)[0]
-        pred_idx      = np.where(self.svm.classes_ == pred_label)[0][0]
+        pred_idx      = np.argmax(probabilities)
+        pred_label    = self.svm.classes_[pred_idx]
         confidence    = probabilities[pred_idx]
 
         print("CONFIDENCE:", float(confidence))
         print("LABEL:     ", pred_label)
 
-    def save_svm_model(self, path="./models/fsl-svm-2-catv6.pkl"):
+    def save_svm_model(self, path="./models/fsl-svm-2-catv9.pkl"):
         joblib.dump({"model": self.svm, "scaler": self.scaler}, path)
 
     def load_svm_model(
         self,
-        path="./models/fsl-svm-2-catv6.pkl",
+        path="./models/fsl-svm-2-catv9.pkl",
         train_features=None,
         train_labels=None,
         test_features=None,
@@ -401,6 +399,15 @@ class FslSvm:
         joblib.dump(self.y_train, "./data/train_labels_v3.npy")
         joblib.dump(self.X_test,  "./data/test_features_v3.npy")
         joblib.dump(self.y_test,  "./data/test_labels_v3.npy")
+
+    def load_Xy(self, train_features="./data/train_features.npy", train_labels="./data/train_labels.npy", test_features="./data/test_features.npy", test_labels="./data/test_labels.npy"):
+        self.X_train = joblib.load(train_features)
+        self.y_train = joblib.load(train_labels)
+        self.X_test  = joblib.load(test_features)
+        self.y_test  = joblib.load(test_labels)
+
+        print("Train shape:", self.X_train.shape)
+        print("Test shape :", self.X_test.shape)
 
     def append_dataset(
         self,

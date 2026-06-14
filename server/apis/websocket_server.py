@@ -34,11 +34,11 @@ async def update_model(data: ModelRequest):
     model = data.model
 
     if model == "Model v1":
-        model_manager.reload("./models/fsl-svm-2-catv4.pkl")
+        model_manager.reload("./models/fsl-svm-2-catv7.pkl")
     elif model == "Model v2":
-        model_manager.reload("./models/fsl-svm-2-catv5.pkl")
+        model_manager.reload("./models/fsl-svm-2-catv8.pkl")
     elif model == "Model v3":
-        model_manager.reload("./models/fsl-svm-2-catv6.pkl")
+        model_manager.reload("./models/fsl-svm-2-catv9.pkl")
 
     return {
         "message": "model updated",
