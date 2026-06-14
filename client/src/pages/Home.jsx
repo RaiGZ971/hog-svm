@@ -68,17 +68,17 @@ function Home() {
           {[
             {
               icon: "⬡",
-              title: "Image preprocessing",
+              title: "Image Preprocessing",
               body: "Images are standardized to 224×224px. Otsu's Thresholding and morphological operations isolate the hand from noisy backgrounds.",
             },
             {
               icon: "◈",
-              title: "HOG feature extraction",
-              body: "The Histogram of Oriented Gradients algorithm extracts the structural contours and edge directions of each gesture — not raw pixels.",
+              title: "MediaPipe Hand Landmark Extraction",
+              body: "The system identifies 21 hand landmarks using MediaPipe. These landmarks capture the shape and position of the hand, providing features that help the SVM recognize Filipino Sign Language gestures.",
             },
             {
               icon: "◎",
-              title: "SVM classification",
+              title: "SVM Classification",
               body: "A Support Vector Machine identifies each of the 26 static alphabet gestures by optimizing the margin between gesture classes.",
             },
           ].map(({ icon, title, body }) => (
