@@ -369,12 +369,12 @@ class FslSvm:
         print("CONFIDENCE:", float(confidence))
         print("LABEL:     ", pred_label)
 
-    def save_svm_model(self, path="./models/fsl-svm-2-catv9.pkl"):
+    def save_svm_model(self, path="./models/fsl-svm-2-catv7.pkl"):
         joblib.dump({"model": self.svm, "scaler": self.scaler}, path)
 
     def load_svm_model(
         self,
-        path="./models/fsl-svm-2-catv9.pkl",
+        path="./models/fsl-svm-2-catv7.pkl",
         train_features=None,
         train_labels=None,
         test_features=None,
