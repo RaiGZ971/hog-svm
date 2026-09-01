@@ -8,7 +8,7 @@ const MODEL_VOCABS = {
   "Model v1": [
     {
       name: "Greetings",
-      words: ["Good morning", "Good afternoon", "Good evening", "Hello", "How are you", "I'm fine", "Nice to meet you", "Thank you", "You're welcom", "See you tomorrow"]
+      words: ["Good morning", "Good afternoon", "Good evening", "Hello", "How are you", "I'm fine", "Nice to meet you", "Thank you", "You're welcome", "See you tomorrow"]
     },
     {
       name: "Colors",
@@ -59,6 +59,22 @@ const MODEL_VOCABS = {
     {
       name: "Days",
       words: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Today", "Tommorow", "Yesterday"]
+    },
+    {
+      name: "Family",
+      words: ["Father", "Mother", "Son", "Daughter", "Grandfather", "Grandmother", "Uncle", "Auntie", "Cousin", "Parents"]
+    },
+    {
+      name: "Relationships",
+      words: ["Boy", "Girl", "Man", "Woman", "Deaf", "Hard of hearing", "Wheelchair person", "Blind", "Deaf blind", "Married"]
+    },
+    {
+      name: "Food",
+      words: ["Bread", "Egg", "Fish", "Meat", "Chicken", "Spaghetti", "Rice", "Longanisa", "Shrimp", "Crab"]
+    },
+    {
+      name: "Drink",
+      words: ["Hot", "Cold", "Juice", "Milk", "Coffee", "Tea", "Beer", "Wine", "Sugar", "No sugar"]
     }
   ]
 };
