@@ -68,18 +68,18 @@ function Home() {
           {[
             {
               icon: "⬡",
-              title: "Image preprocessing",
-              body: "Images are standardized to 224×224px. Otsu's Thresholding and morphological operations isolate the hand from noisy backgrounds.",
+              title: "MediaPipe Hand Landmark Detection",
+              body: "MediaPipe detects key hand landmarks from the camera feed and converts them into structured coordinate data for gesture analysis.",
             },
             {
               icon: "◈",
-              title: "HOG feature extraction",
-              body: "The Histogram of Oriented Gradients algorithm extracts the structural contours and edge directions of each gesture — not raw pixels.",
+              title: "Topological & Temporal Feature Extraction",
+              body: "Landmark data is transformed into topological (point cloud) and temporal (velocity) features that capture both hand shape and movement patterns.",
             },
             {
               icon: "◎",
-              title: "SVM classification",
-              body: "A Support Vector Machine identifies each of the 26 static alphabet gestures by optimizing the margin between gesture classes.",
+              title: "SVM Gesture Classification",
+              body: "The Support Vector Machine analyzes extracted features and predicts the corresponding Filipino Sign Language gesture or phrase using an optimized classification model.",
             },
           ].map(({ icon, title, body }) => (
             <div key={title} style={{
