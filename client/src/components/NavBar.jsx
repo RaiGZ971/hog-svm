@@ -15,7 +15,7 @@ function Navbar() {
   return (
     <nav className="primary-nav">
       <span className="logo-text">
-        HOG–SVM FSL Recognizer
+        QZPH–SVM FSL Recognizer
       </span>
 
       <div className="nav-buttons">
